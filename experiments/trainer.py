@@ -4,7 +4,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import importlib
-from termcolor import colored
+from termcolor import colored, cprint
+import time
 
 from models.models import SimpleLinear, MLP, CNN
 from experiments.loader import load_dataset, load_dataset_ndbc
@@ -37,27 +38,30 @@ def train_ndbc_seq(config, model, data, is_cnn=False, verbose=False):
     X_test, y_test = create_sequences(config, data['X_test'], data['y_test'], config.seq_len, n)
     
     if is_cnn:
-        X_train = X_train.transpose(1, 2)
-        X_test = X_test.transpose(1, 2)
+        X_train = X_train.transpose(1, 2).to(device)
+        X_test = X_test.transpose(1, 2).to(device)
         
-        X_train = torch.FloatTensor(X_train)
-        X_test = torch.FloatTensor(X_test)
+        # X_train = torch.FloatTensor(X_train, device=device)
+        # X_test = torch.FloatTensor(X_test, device=device)
         
-        y_train = torch.FloatTensor(y_train)
-        y_test = torch.FloatTensor(y_test)
+        # y_train = torch.FloatTensor(y_train, device=device)
+        # y_test = torch.FloatTensor(y_test, device=device)
     else:
         X_train = X_train.view(X_train.shape[0], -1)
         X_test = X_test.view(X_test.shape[0], -1)
         
         y_train = y_train.squeeze()
         y_test = y_test.squeeze()
-    # print(len(train_loader))
-    # quit()
+    
+    y_train = y_train.to(device)
+    y_test = y_test.to(device)
     
     train_criterion = nn.MSELoss()
-    # eval_criterion = nn.L1Loss()
-    eval_criterion = RMSE
+    eval_criterion = nn.L1Loss()
+    # eval_criterion = RMSE
     
+    loss_list = []
+    start_time = time.time()
     for run in range(runs):
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         
@@ -74,15 +78,17 @@ def train_ndbc_seq(config, model, data, is_cnn=False, verbose=False):
             optimizer.step()
             
             # if verbose and (epoch % (num_epochs // 10) == 0):
-            if verbose:
-                print(f'Epoch {epoch + 1}: {loss.item():.4f}')
-        
-        loss_list = []
+            # if verbose:
+            #     print(f'Epoch {epoch + 1}: {loss.item():.4f}')
+
         model.eval()
         with torch.no_grad():
             y_pred = model(X_test)
-            loss = eval_criterion(y_pred, y_test)
+            loss = eval_criterion(y_pred.squeeze(), y_test)
             loss_list.append(loss.item())
+    
+    end_time = time.time()
+    cprint(f'Time taken: {end_time - start_time:.2f} seconds', 'magenta')
     
     total_avg_loss = np.mean(loss_list)
     std_loss = np.std(loss_list)
@@ -141,8 +147,8 @@ def train_ndbc(config, model, data, is_cnn=False, verbose=False):
             
             total_loss += loss.item()
             
-            if verbose and (epoch % (num_epochs // 10) == 0):
-                print(f'Epoch {epoch + 1}: {total_loss:.4f}')
+            # if verbose and (epoch % (num_epochs // 10) == 0):
+            #     print(f'Epoch {epoch + 1}: {total_loss:.4f}')
         
         loss_list = []
         model.eval()

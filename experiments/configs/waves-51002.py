@@ -21,15 +21,15 @@ def get_config():
     
     # CNN model
     config.is_cnn = True
-    config.cnn_hidden = 32
-    config.output_channels = 16
-    config.kernel_size = 4
+    config.cnn_hidden = 24
+    config.output_channels = 48
+    config.kernel_size = 6
     config.stride = 1
     
     # training settings
-    config.runs = 1
-    config.epochs =200
-    config.lr = 0.01
+    config.runs = 10
+    config.epochs =500
+    config.lr = 0.005
     config.min_lr = 1e-4
     
     # misc.

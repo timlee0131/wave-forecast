@@ -2,6 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import StepLR
+
+import matplotlib.pyplot as plt
 
 import importlib
 from termcolor import colored, cprint
@@ -19,19 +22,12 @@ def get_config(config_name):
     spec.loader.exec_module(module)
     return module.get_config()
 
-def train_ndbc_seq(config, model, data, is_cnn=False, verbose=False):
-    n = config.n_step
+def train_ndbc_seq(config, model, n, data, is_cnn=False, verbose=False):
     runs = config.runs
     num_epochs = config.epochs
     learning_rate = config.lr
     
     total_avg_loss = 0
-
-    # X_train = data['X_train'][:n * -1]
-    # X_test = data['X_test'][:n * -1]
-    
-    # y_train = data['y_train'][n:]
-    # y_test = data['y_test'][n:]
     
     X_train, y_train = create_sequences(config, data['X_train'], data['y_train'], config.seq_len, n)
     
@@ -40,12 +36,6 @@ def train_ndbc_seq(config, model, data, is_cnn=False, verbose=False):
     if is_cnn:
         X_train = X_train.transpose(1, 2).to(device)
         X_test = X_test.transpose(1, 2).to(device)
-        
-        # X_train = torch.FloatTensor(X_train, device=device)
-        # X_test = torch.FloatTensor(X_test, device=device)
-        
-        # y_train = torch.FloatTensor(y_train, device=device)
-        # y_test = torch.FloatTensor(y_test, device=device)
     else:
         X_train = X_train.view(X_train.shape[0], -1)
         X_test = X_test.view(X_test.shape[0], -1)
@@ -56,36 +46,43 @@ def train_ndbc_seq(config, model, data, is_cnn=False, verbose=False):
     y_train = y_train.to(device)
     y_test = y_test.to(device)
     
-    train_criterion = nn.MSELoss()
+    train_criterion = nn.L1Loss()
     eval_criterion = nn.L1Loss()
     # eval_criterion = RMSE
     
-    loss_list = []
+    # timing 
     start_time = time.time()
+    
+    loss_list = []
     for run in range(runs):
+        model.reset_parameters()
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        # scheduler = StepLR(optimizer, step_size=100, gamma=0.1)
         
         model.train()
         for epoch in range(num_epochs):
             model.train()
-            total_loss = 0
             outputs = model(X_train)
         
             loss = train_criterion(outputs.squeeze(), y_train)
             
             optimizer.zero_grad()
             loss.backward()
+            
             optimizer.step()
+            # scheduler.step()
             
             # if verbose and (epoch % (num_epochs // 10) == 0):
-            # if verbose:
-            #     print(f'Epoch {epoch + 1}: {loss.item():.4f}')
+            if config.epoch_verbose:
+                print(f'Epoch {epoch + 1}: {loss.item():.4f}')
 
         model.eval()
         with torch.no_grad():
             y_pred = model(X_test)
             loss = eval_criterion(y_pred.squeeze(), y_test)
             loss_list.append(loss.item())
+    
+            # Plot the first 100 predictions
     
     end_time = time.time()
     cprint(f'Time taken: {end_time - start_time:.2f} seconds', 'magenta')
@@ -261,7 +258,7 @@ def driver(config_name, aux=False):
     # defining models
     lin = SimpleLinear(config.num_features).to(device)
     mlp = MLP(config.num_features * config.seq_len, config.hidden_channels).to(device)
-    cnn = CNN(config.num_features, config.cnn_hidden, config.output_channels, config.kernel_size, config.stride).to(device)
+    model = CNN(config.num_features, config.cnn_hidden1, config.cnn_hidden2, config.fc_hidden, config.output_channels, config.kernel_size, config.stride).to(device)
     
     # print()
     # print(colored("training Linear...", 'blue'))
@@ -280,6 +277,7 @@ def driver(config_name, aux=False):
     print()
     print(colored("training CNN...", 'blue'))
     if config.dataset in ndbc_whitelist:
-        train_ndbc_seq(config, cnn, data, config.is_cnn, verbose=config.verbose)
+        for n in config.n_step:
+            train_ndbc_seq(config, model, n, data, config.is_cnn, verbose=config.verbose)
     else:
-        train(config, cnn, data, config.is_cnn, verbose=config.verbose)
+        train(config, data, config.is_cnn, verbose=config.verbose)

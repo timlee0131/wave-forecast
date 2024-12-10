@@ -24,4 +24,9 @@ def load_dataset(config, device):
 def load_dataset_ndbc(config, device):
     data = torch.load(f'{config.data_dir}/{config.dataset}.pt')
     
+    data['X_train'] = data['X_train'].to(device)
+    data['X_test'] = data['X_test'].to(device)
+    data['y_train'] = data['y_train'].to(device)
+    data['y_test'] = data['y_test'].to(device)
+    
     return data

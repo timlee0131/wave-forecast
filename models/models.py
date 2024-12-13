@@ -7,20 +7,40 @@ class SimpleLinear(nn.Module):
     def __init__(self, input_dim, output_dim = 1):
         super(SimpleLinear, self).__init__()
         self.linear = nn.Linear(input_dim, output_dim)
+        
+        self.reset_parameters()
 
     def forward(self, x):
-        return self.linear(x).squeeze()
+        return self.linear(x)
+    
+    def reset_parameters(self):
+        for module in self.modules():
+            if isinstance(module, (nn.Linear)):
+                nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, input_dim, hidden_dim1, hidden_dim2):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, 1)
+        self.fc1 = nn.Linear(input_dim, hidden_dim1)
+        self.fc2 = nn.Linear(hidden_dim1, hidden_dim2)
+        self.fc3 = nn.Linear(hidden_dim2, 1)
+        
+        self.reset_parameters()
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x.squeeze()
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+    
+    def reset_parameters(self):
+        for module in self.modules():
+            if isinstance(module, (nn.Linear)):
+                nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
 class CNN(nn.Module):
     def __init__(self, input_dim, hidden_dim1, hidden_dim2, fc_hidden, output_dim, kernel_size, stride):
@@ -59,7 +79,6 @@ class CNN(nn.Module):
         x = self.fc(x)
         x = nn.ReLU()(x)
         x = self.fc2(x)
-        # x = x.transpose(0,1)
         
         return x
     

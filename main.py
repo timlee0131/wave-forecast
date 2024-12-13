@@ -6,7 +6,7 @@ def get_args():
 
     parser.add_argument('-m', '--mode', choices=['train', 'aux', 'test'], type=str, default='train', help='Mode: train, aux, test')
     
-    parser.add_argument('-d', '--dataset', choices=['waves', 'waves-2024', 'waves-51002'], type=str, default='waves', help='dataset to use')
+    parser.add_argument('-d', '--dataset', choices=['waves', 'waves-2024', 'waves-51002', 'waves-51002-2016', 'waves-51002-2017', 'waves-51002-2018'], type=str, default='waves', help='dataset to use')
 
     return parser.parse_args()
 

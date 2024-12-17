@@ -67,13 +67,3 @@ tasks to complete
 
     - test viability of using masked data to perform predictions (data with "missing" values)
     - cross buoy predictions
-
-**Douglas comments**
-- don't just use wave height to predict future wave height
-- how is wave height related to other things -- has someone worked out an equation? we don't necessarily want to rediscover known laws of physics
-- document what I'm doing and be able to explain it -- as it pertains to what I'm doing with missing data, inconsistencies in datasets and stuff like that. Document what I overcame to get a half decent result
-- putting a framework around the model to standardize things might be useful
-- one model should be a multi layer conv1D
-- look into how people have handled missing data with CNNs
-- timeline code and report
-- maybe put them into bins (classify different wave ranges)

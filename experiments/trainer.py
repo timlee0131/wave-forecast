@@ -23,8 +23,8 @@ def get_config(config_name):
     spec.loader.exec_module(module)
     return module.get_config()
 
-def train_ndbc_direct_spliced(config, model, data, k, is_cnn=False, verbose=False):
-    n = config.n_step[0]
+def train_ndbc_direct(config, model, data, is_cnn=False, verbose=False):
+    n = config.n_step
     runs = config.runs
     num_epochs = config.epochs
     learning_rate = config.lr
@@ -36,9 +36,9 @@ def train_ndbc_direct_spliced(config, model, data, k, is_cnn=False, verbose=Fals
     X_test = data['X_test']
     y_test = data['y_test']
     
-    X_train, y_train = create_sequences(config, X_train, y_train, k, n)
+    X_train, y_train = create_sequences(config, X_train, y_train, config.seq_len, n)
     
-    X_test, y_test = create_sequences(config, X_test, y_test, k, n)
+    X_test, y_test = create_sequences(config, X_test, y_test, config.seq_len, n)
     
     if is_cnn:
         X_train = X_train.transpose(1, 2)
@@ -118,207 +118,9 @@ def train_ndbc_direct_spliced(config, model, data, k, is_cnn=False, verbose=Fals
     
     return min_y_pred, y_test
 
-def train_ndbc_direct(config, model, data, k, is_cnn=False, verbose=False):
-    n = config.n_step[0]
-    runs = config.runs
-    num_epochs = config.epochs
-    learning_rate = config.lr
-    
-    total_avg_loss = 0
-    
-    X_train = data['X_train']
-    y_train = data['y_train']
-    X_test = data['X_test']
-    y_test = data['y_test']
-    
-    X_train, y_train = create_sequences(config, X_train, y_train, k, n)
-    
-    X_test, y_test = create_sequences(config, X_test, y_test, k, n)
-    
-    if is_cnn:
-        X_train = X_train.transpose(1, 2)
-        X_test = X_test.transpose(1, 2)
-    else:
-        X_train = X_train.view(X_train.shape[0], -1)
-        X_test = X_test.view(X_test.shape[0], -1)
-        
-        y_train = y_train.squeeze()
-        y_test = y_test.squeeze()
-    
-    y_train = y_train.to(device)
-    y_test = y_test.to(device)
-    
-    train_criterion = nn.MSELoss()
-    eval_criterion = nn.L1Loss()
-    # eval_criterion = RMSE
-    
-    # timing 
-    start_time = time.time()
-    
-    min_y_pred = None   # for plotting purposes
-    min_loss = float('inf')
-    
-    loss_list = []
-    for run in range(runs):
-        model.reset_parameters()
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-        # scheduler = StepLR(optimizer, step_size=100, gamma=0.1)
-        
-        model.train()
-        for epoch in range(num_epochs):
-            model.train()
-            outputs = model(X_train)
-            
-            loss = train_criterion(outputs.squeeze(), y_train)
-            
-            optimizer.zero_grad()
-            loss.backward()
-            
-            optimizer.step()
-            # scheduler.step()
-            
-            # if verbose and (epoch % (num_epochs // 10) == 0):
-            if config.epoch_verbose:
-                print(f'Epoch {epoch + 1}: {loss.item():.4f}')
-
-        model.eval()
-        with torch.no_grad():
-            y_pred = model(X_test)
-            
-            loss = eval_criterion(y_pred.squeeze(), y_test)
-            loss_list.append(loss.item())
-    
-            if loss.item() <= min_loss:
-                min_loss = loss
-                min_y_pred = y_pred
-    
-    end_time = time.time()
-    if config.time_verbose:
-        cprint(f'Time taken: {end_time - start_time:.2f} seconds over {config.runs} runs', 'magenta')
-    
-    total_avg_loss = np.mean(loss_list)
-    std_loss = np.std(loss_list)
-    
-    indices_largest, values_largest, indices_smallest, values_smallest = loss_analysis(config, loss_list)
-    
-    if verbose:
-        avg_loss = colored(f'{total_avg_loss:.4f}', 'green')
-        std_loss = colored(f'{std_loss:.4f}', 'light_green')
-    
-        print(f'Loss for station 51002: {avg_loss} +- {std_loss} meters')
-        # values_lg_c = colored(values_largest, 'red')
-        # values_sm_c = colored(values_smallest, 'blue')
-        # print(f'10 highest loss values: {values_lg_c}')
-        # print(f'10 lowest loss values: {values_sm_c}')  
-    
-    return min_y_pred, y_test
-
-def train_ndbc_iter(config, model, data, is_cnn=False, verbose=False):
-    runs = config.runs
-    num_epochs = config.epochs
-    learning_rate = config.lr
-    
-    total_avg_loss = 0
-    
-    X_train = data['X_train']
-    y_train = data['y_train']
-    X_test = data['X_test']
-    y_test = data['y_test']
-    
-    X_train, y_train = create_sequences(config, X_train, y_train, config.seq_len, config.look_ahead)
-    
-    X_test, y_test = create_sequences(config, X_test, y_test, config.seq_len, config.look_ahead)
-    
-    if is_cnn:
-        X_train = X_train.transpose(1, 2)
-        X_test = X_test.transpose(1, 2)
-    else:
-        X_train = X_train.view(X_train.shape[0], -1)
-        X_test = X_test.view(X_test.shape[0], -1)
-        
-        y_train = y_train.squeeze()
-        y_test = y_test.squeeze()
-    
-    y_train = y_train.to(device)
-    y_test = y_test.to(device)
-    
-    train_criterion = nn.MSELoss()
-    eval_criterion = nn.L1Loss()
-    # eval_criterion = RMSE
-    
-    # timing 
-    start_time = time.time()
-    
-    min_y_pred = None   # for plotting purposes
-    min_loss = float('inf')
-    
-    loss_list = []
-    for run in range(runs):
-        model.reset_parameters()
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-        # scheduler = StepLR(optimizer, step_size=100, gamma=0.1)
-        
-        model.train()
-        for epoch in range(num_epochs):
-            model.train()
-            outputs = model(X_train)
-            
-            loss = train_criterion(outputs.squeeze(), y_train)
-            
-            optimizer.zero_grad()
-            loss.backward()
-            
-            optimizer.step()
-            # scheduler.step()
-            
-            # if verbose and (epoch % (num_epochs // 10) == 0):
-            if config.epoch_verbose:
-                print(f'Epoch {epoch + 1}: {loss.item():.4f}')
-
-        model.eval()
-        with torch.no_grad():
-            i = 0
-            j = config.seq_len
-            X_test = X_test[i:j]
-            
-            for step in range(config.n_step[0]):
-                y_pred = model(X_test)
-                
-                loss = eval_criterion(y_pred.squeeze(), y_test)
-                loss_list.append(loss.item())
-        
-                if loss.item() <= min_loss:
-                    min_loss = loss
-                    min_y_pred = y_pred
-                
-                i += config.seq_len
-                j += config.seq_len
-                if j >= len(X_test):
-                    break
-    
-    end_time = time.time()
-    if config.time_verbose:
-        cprint(f'Time taken: {end_time - start_time:.2f} seconds', 'magenta')
-    
-    total_avg_loss = np.mean(loss_list)
-    std_loss = np.std(loss_list)
-    
-    indices_largest, values_largest, indices_smallest, values_smallest = loss_analysis(config, loss_list)
-    
-    if verbose:
-        avg_loss = colored(f'{total_avg_loss:.4f}', 'green')
-        std_loss = colored(f'{std_loss:.4f}', 'light_green')
-    
-        print(f'Loss for station 51002: {avg_loss} +- {std_loss} meters')
-        # values_lg_c = colored(values_largest, 'red')
-        # values_sm_c = colored(values_smallest, 'blue')
-        # print(f'10 highest loss values: {values_lg_c}')
-        # print(f'10 lowest loss values: {values_sm_c}')  
-    
-    return min_y_pred, y_test
-
+# Deprecated
 def train(config, model, data, is_cnn=False, verbose=False):
-    n = config.n_step[0]
+    n = config.n_step
     runs = config.runs
     num_epochs = config.epochs
     learning_rate = config.lr
@@ -409,39 +211,30 @@ def driver(config_name, aux=False):
         return
     
     # defining models
-    # lin = SimpleLinear(config.num_features * config.seq_len).to(device)
-    # mlp = MLP(config.num_features * config.seq_len, config.mlp_hidden1, config.mlp_hidden2).to(device)
+    lin = SimpleLinear(config.num_features * config.seq_len).to(device)
+    mlp = MLP(config.num_features * config.seq_len, config.mlp_hidden1, config.mlp_hidden2).to(device)
     model = CNN(config.num_features, config.cnn_hidden1, config.cnn_hidden2, config.fc_hidden, config.output_channels, config.kernel_size, config.stride).to(device)
     
     # testing iterative model
     
-    # print()
-    # print(colored("training Linear...", 'blue'))
-    # if config.dataset in ndbc_whitelist:
-    #     y_pred_lin, y_test_lin = train_ndbc_direct(config, lin, data, verbose=config.verbose)
-    # else:
-    #     train(config, lin, data, verbose=config.verbose)
+    print()
+    print(colored("training Linear...", 'blue'))
+    if config.dataset in ndbc_whitelist:
+        y_pred_lin, y_test_lin = train_ndbc_direct(config, lin, data, verbose=config.verbose)
+    else:
+        train(config, lin, data, verbose=config.verbose)
     
-    # np.save('./experiments/data/npy/y_pred_lin.npy', y_pred_lin.cpu().numpy())
-    # np.save('./experiments/data/npy/y_test_lin.npy', y_test_lin.cpu().numpy())
+    print()
+    print(colored("training MLP...", 'blue'))
+    if config.dataset in ndbc_whitelist:
+        y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
+    else:
+        train(config, mlp, data, verbose=config.verbose)
     
-    # print()
-    # print(colored("training MLP...", 'blue'))
-    # if config.dataset in ndbc_whitelist:
-    #     y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
-    # else:
-    #     train(config, mlp, data, verbose=config.verbose)
-    
-    # np.save('./experiments/data/npy/y_pred_mlp.npy', y_pred_mlp.cpu().numpy())
-    # np.save('./experiments/data/npy/y_test_mlp.npy', y_test_mlp.cpu().numpy())
     
     print()
     print(colored("training CNN...", 'blue'))
-    for k in config.seq_len:
-        if config.dataset in ndbc_whitelist:
-            y_pred_cnn, y_test_cnn = train_ndbc_direct(config, model, data, k, config.is_cnn, verbose=config.verbose)
-        else:
-            train(config, model, data, config.is_cnn, verbose=config.verbose)
-    
-    # np.save('./experiments/data/npy/y_pred_cnn201678.npy', y_pred_cnn.cpu().numpy())
-    # np.save('./experiments/data/npy/y_test_cnn201678.npy', y_test_cnn.cpu().numpy())
+    if config.dataset in ndbc_whitelist:
+        y_pred_cnn, y_test_cnn = train_ndbc_direct(config, model, data, config.is_cnn, verbose=config.verbose)
+    else:
+        train(config, model, data, config.is_cnn, verbose=config.verbose)

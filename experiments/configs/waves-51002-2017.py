@@ -37,9 +37,8 @@ def get_config():
     
     # misc.
     config.look_ahead = 1
-    config.n_step = [6 * 12, 6 * 24, 6 * 36, 6 * 48, 6 * 72, 6 * 96]    # look-ahead steps
-    # config.n_step = [6 * 12]
-    config.seq_len = [1, 6, 6 * 6, 6 * 12, 6 * 24, 6 * 36, 6 * 48, 6 * 72, 6 * 96]   # look-back steps (k)
+    config.n_step = 6 * 24  # look-ahead steps
+    config.seq_len = 6 * 72   # look-back steps (k)
     config.train_ratio = 0.8
     config.verbose = True
     config.epoch_verbose = False

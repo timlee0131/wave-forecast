@@ -12,13 +12,13 @@ def get_config():
     )
     
     # dataset info
-    config.dataset = 'waves-51002-2017'
+    config.dataset = 'waves-51002-2016'
     config.num_features = 16
     
     # MLP model
     config.loss_fn = 'l1'
     config.mlp_hidden1 = 32
-    config.mlp_hidden2 = 8
+    config.mlp_hidden2 = 48
     
     # CNN model
     config.is_cnn = True
@@ -42,6 +42,6 @@ def get_config():
     config.train_ratio = 0.8
     config.verbose = True
     config.epoch_verbose = False
-    config.time_verbose = False
+    config.time_verbose = True
     
     return config

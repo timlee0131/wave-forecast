@@ -1,6 +1,7 @@
 playground/
 
-data/
+npy/
+raw/
 
 .DS_Store
 

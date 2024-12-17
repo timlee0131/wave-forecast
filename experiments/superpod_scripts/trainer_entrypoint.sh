@@ -14,6 +14,6 @@ trap 'sig_handler' SIGTERM SIGINT SIGCONT
 cd /users/hunjael/Projects/wave-forecast/
 python -m pip install -r requirements.txt
 
-python main.py -m train -d waves-51002
+python main.py -m train -d waves-51002-2017
 srun_pid=$!
 wait $srun_pid

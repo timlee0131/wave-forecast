@@ -12,7 +12,7 @@ def get_config():
     )
     
     # dataset info
-    config.dataset = 'waves-51002'
+    config.dataset = 'waves-51002-2017'
     config.num_features = 16
     
     # MLP model
@@ -30,7 +30,7 @@ def get_config():
     config.stride = 1
     
     # training settings
-    config.runs = 1
+    config.runs = 10
     config.epochs = 1000
     config.lr = 0.001
     config.min_lr = 1e-3
@@ -39,7 +39,7 @@ def get_config():
     config.look_ahead = 1
     config.n_step = [6 * 12, 6 * 24, 6 * 36, 6 * 48, 6 * 72, 6 * 96]    # look-ahead steps
     # config.n_step = [6 * 12]
-    config.seq_len = 6 * 24   # look-back steps
+    config.seq_len = [1, 6, 6 * 6, 6 * 12, 6 * 24, 6 * 36, 6 * 48, 6 * 72, 6 * 96]   # look-back steps (k)
     config.train_ratio = 0.8
     config.verbose = True
     config.epoch_verbose = False

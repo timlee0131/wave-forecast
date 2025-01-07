@@ -63,6 +63,7 @@ class CNN(nn.Module):
     def forward(self, x):
         t_len = x.shape[2]
         x = nn.ReLU()(self.conv1(x))
+        
         x = self.mean_pool(x)
         
         x = nn.ReLU()(self.conv2(x))

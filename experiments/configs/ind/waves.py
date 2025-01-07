@@ -6,14 +6,14 @@ def get_config():
     config.computer = "local"
     config.n_gpus = 1 if config.computer == "superpod" else 0
     config.data_dir = (
-        "./experiments/data/pt"
+        "./experiments/data/pt/ind"
         if config.computer == "local"
         else "/data"
     )
     
     # dataset info
-    config.dataset = 'waves-51002-2017'
-    config.num_features = 16
+    config.dataset = 'waves'
+    config.num_features = 6
     
     # MLP model
     config.loss_fn = 'l1'
@@ -31,14 +31,14 @@ def get_config():
     
     # training settings
     config.runs = 10
-    config.epochs = 1000
-    config.lr = 0.001
-    config.min_lr = 1e-3
+    config.epochs = 200
+    config.lr = 5e-3
+    config.min_lr = 1e-4
     
     # misc.
     config.look_ahead = 1
-    config.n_step = 6 * 24  # look-ahead steps
-    config.seq_len = 6 * 72   # look-back steps (k)
+    config.n_step = 6
+    config.seq_len = 12   # look-back steps (k)
     config.train_ratio = 0.8
     config.verbose = True
     config.epoch_verbose = False

@@ -40,6 +40,8 @@ def train_ndbc_direct(config, model, data, is_cnn=False, verbose=False):
     
     X_test, y_test = create_sequences(config, X_test, y_test, config.seq_len, n)
     
+    print(config.n_step, X_train.shape, y_train.shape)
+    
     if is_cnn:
         X_train = X_train.transpose(1, 2)
         X_test = X_test.transpose(1, 2)
@@ -84,12 +86,11 @@ def train_ndbc_direct(config, model, data, is_cnn=False, verbose=False):
             
             # if verbose and (epoch % (num_epochs // 10) == 0):
             if config.epoch_verbose:
-                print(f'Epoch {epoch + 1}: {loss.item():.4f}')
+                print(f'Epoch {epoch + 1}: {loss.item():.3f}')
 
         model.eval()
         with torch.no_grad():
             y_pred = model(X_test)
-            
             loss = eval_criterion(y_pred.squeeze(), y_test)
             loss_list.append(loss.item())
     
@@ -118,7 +119,6 @@ def train_ndbc_direct(config, model, data, is_cnn=False, verbose=False):
     
     return min_y_pred, y_test
 
-# Deprecated
 def train(config, model, data, is_cnn=False, verbose=False):
     n = config.n_step
     runs = config.runs
@@ -132,31 +132,38 @@ def train(config, model, data, is_cnn=False, verbose=False):
             print(f'Number of steps: {n} hours')
         print(f'Number of runs: {runs}')
     
+    # timing
+    start_time = time.time()
+    
     for station in data:
-        total_avg_loss = 0
-
-        X_train = station['X_train'][:n * -1]
-        X_test = station['X_test'][:n * -1]
+        X_train = station['X_train']
+        y_train = station['y_train']
+        X_test = station['X_test']
+        y_test = station['y_test']
         
-        y_train = station['y_train'][n:]
-        y_test = station['y_test'][n:]
+        X_train, y_train = create_sequences(config, X_train, y_train, config.seq_len, n)
+        X_test, y_test = create_sequences(config, X_test, y_test, config.seq_len, n)
         
         if is_cnn:
-            X_train = X_train.unsqueeze(0).transpose(1, 2)
-            X_test = X_test.unsqueeze(0).transpose(1, 2)
+            X_train = X_train.transpose(1, 2)
+            X_test = X_test.transpose(1, 2)
+        else:
+            X_train = X_train.view(X_train.shape[0], -1)
+            X_test = X_test.view(X_test.shape[0], -1)
             
-            # y_train = y_train.unsqueeze(0)
-            # y_test = y_test.unsqueeze(0)
-            
-        print(X_train.shape, y_train.shape)
-        print(X_test.shape, y_test.shape)
+            y_train = y_train.squeeze()
+            y_test = y_test.squeeze()
+        
+        train_criterion = nn.MSELoss()
+        # eval_criterion = nn.L1Loss()
+        eval_criterion = RMSE
+        
+        min_y_pred = None
+        min_loss = float('inf')
         
         loss_list = []
         for run in range(runs):
-
-            train_criterion = nn.MSELoss()
-            # eval_criterion = nn.L1Loss()
-            eval_criterion = RMSE
+            model.reset_parameters()
             optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
             
             model.train()
@@ -168,6 +175,9 @@ def train(config, model, data, is_cnn=False, verbose=False):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                
+                if config.epoch_verbose:
+                    print(f'Epoch {epoch + 1}: {loss.item():.3f}')
 
             model.eval()
             with torch.no_grad():
@@ -175,6 +185,10 @@ def train(config, model, data, is_cnn=False, verbose=False):
                 loss = eval_criterion(y_pred, y_test)
                 # print(f'Final Loss: {loss.item():.4f} meters')
                 loss_list.append(loss.item())
+                
+                if loss.item() <= min_loss:
+                    min_loss = loss
+                    min_y_pred = y_pred
         
         total_avg_loss = np.mean(loss_list)
         std_loss = np.std(loss_list)
@@ -187,15 +201,21 @@ def train(config, model, data, is_cnn=False, verbose=False):
             std_loss = colored(f'{std_loss:.4f}', 'light_green')
         
             print(f'Loss for station {station_name}: {avg_loss} +- {std_loss} meters')
-            values_lg_c = colored(values_largest, 'red')
-            values_sm_c = colored(values_smallest, 'blue')
-            print(f'10 highest loss values: {values_lg_c}')
-            print(f'10 lowest loss values: {values_sm_c}')
+        
+    if verbose:
+        med_loss = colored(np.median(loss_list), 'cyan')
+        print(f'Median loss: {med_loss:.4f} meters')
+        
+    end_time = time.time()
+    if config.time_verbose:
+        cprint(f'Time taken for {len(data)} stations: {end_time - start_time:.2f} seconds over {config.runs} runs', 'magenta')
+    
+    return min_y_pred, y_test
 
 def driver(config_name, aux=False):
     ndbc_whitelist = ['waves-51002', 'waves-51002-2016', 'waves-51002-2017', 'waves-51002-2018']
     
-    config_path = f'./experiments/configs/{config_name}.py'
+    config_path = f'./experiments/configs/ind/{config_name}.py'
     
     config = get_config(config_path)
     if config.dataset in ndbc_whitelist:
@@ -211,25 +231,23 @@ def driver(config_name, aux=False):
         return
     
     # defining models
-    lin = SimpleLinear(config.num_features * config.seq_len).to(device)
+    # lin = SimpleLinear(config.num_features * config.seq_len).to(device)
     mlp = MLP(config.num_features * config.seq_len, config.mlp_hidden1, config.mlp_hidden2).to(device)
     model = CNN(config.num_features, config.cnn_hidden1, config.cnn_hidden2, config.fc_hidden, config.output_channels, config.kernel_size, config.stride).to(device)
     
-    # testing iterative model
+    # print()
+    # print(colored("training Linear...", 'blue'))
+    # if config.dataset in ndbc_whitelist:
+    #     y_pred_lin, y_test_lin = train_ndbc_direct(config, lin, data, verbose=config.verbose)
+    # else:
+    #     train(config, lin, data, verbose=config.verbose)
     
-    print()
-    print(colored("training Linear...", 'blue'))
-    if config.dataset in ndbc_whitelist:
-        y_pred_lin, y_test_lin = train_ndbc_direct(config, lin, data, verbose=config.verbose)
-    else:
-        train(config, lin, data, verbose=config.verbose)
-    
-    print()
-    print(colored("training MLP...", 'blue'))
-    if config.dataset in ndbc_whitelist:
-        y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
-    else:
-        train(config, mlp, data, verbose=config.verbose)
+    # print()
+    # print(colored("training MLP...", 'blue'))
+    # if config.dataset in ndbc_whitelist:
+    #     y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
+    # else:
+    #     y_pred_mlp, y_test_mlp = train(config, mlp, data, verbose=config.verbose)
     
     
     print()
@@ -237,4 +255,4 @@ def driver(config_name, aux=False):
     if config.dataset in ndbc_whitelist:
         y_pred_cnn, y_test_cnn = train_ndbc_direct(config, model, data, config.is_cnn, verbose=config.verbose)
     else:
-        train(config, model, data, config.is_cnn, verbose=config.verbose)
+        y_pred_mlp, y_test_mlp = train(config, model, data, config.is_cnn, verbose=config.verbose)

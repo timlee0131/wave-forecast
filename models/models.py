@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+import torch_geometric
+from torch_geometric.data import Data
+from torch_geometric.nn import GCNConv, GATv2Conv
+from torch.optim.lr_scheduler import StepLR
+
 class SimpleLinear(nn.Module):
     def __init__(self, input_dim, output_dim = 1):
         super(SimpleLinear, self).__init__()
@@ -92,3 +97,46 @@ class CNN(nn.Module):
     
     def reset(self):
         self.reset_parameters()
+
+# define GCN model
+class SpaceGNN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(SpaceGNN, self).__init__()
+        # self.conv1 = GCNConv(input_dim, hidden_dim)
+        # self.conv2 = GCNConv(hidden_dim, output_dim)
+        self.conv1 = GATv2Conv(input_dim, hidden_dim, heads=8, dropout=0.6)
+        self.conv2 = GATv2Conv(hidden_dim * 8, output_dim, heads=1, concat=False, dropout=0.4)
+        
+        self.linear = nn.Linear(output_dim, 1)
+    
+    def forward(self, x, edge_index):
+        x = self.conv1(x, edge_index)
+        # x = nn.ReLU()(x)
+        x = nn.LeakyReLU(negative_slope=0.2)(x)
+        x = self.conv2(x, edge_index)
+        # x = nn.ReLU()(x)
+        # x = self.conv3(x, edge_index)
+        # x = torch.relu(x)
+        # x = self.linear(x)
+        return x
+
+class TimeThenSpace(nn.Module):
+    def __init__(self, input_dim, time_hidden, time_out, space_hidden, output_dim):
+        super(TimeThenSpace, self).__init__()
+        
+        self.time_nn = nn.Sequential(
+            nn.Linear(input_dim, time_hidden),
+            nn.ReLU(),
+            # nn.Linear(time_hidden * 2, time_hidden),
+            # nn.ReLU(),
+            nn.Linear(time_hidden, time_out)
+        )
+        # self.time_nn = nn.Linear(input_dim, time_out)
+        
+        self.space_nn = SpaceGNN(input_dim=time_out, hidden_dim=space_hidden, output_dim=output_dim)
+        # self.space_nn = GCNConv(time_out, output_dim)
+    
+    def forward(self, x, edge_index):
+        x = self.time_nn(x)
+        x = self.space_nn(x, edge_index)
+        return x

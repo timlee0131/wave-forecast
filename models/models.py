@@ -105,19 +105,17 @@ class SpaceGNN(nn.Module):
         # self.conv1 = GCNConv(input_dim, hidden_dim)
         # self.conv2 = GCNConv(hidden_dim, output_dim)
         self.conv1 = GATv2Conv(input_dim, hidden_dim, heads=8, dropout=0.6)
-        self.conv2 = GATv2Conv(hidden_dim * 8, output_dim, heads=1, concat=False, dropout=0.4)
+        self.conv2 = GATv2Conv(hidden_dim * 8, output_dim, heads=1, concat=False, dropout=0.6)
         
-        self.linear = nn.Linear(output_dim, 1)
+        # self.linear = nn.Linear(output_dim, 1)
     
     def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        # x = nn.ReLU()(x)
-        x = nn.LeakyReLU(negative_slope=0.2)(x)
+        x = F.dropout(x, p=0.6, training=self.training)
+        x = F.elu(self.conv1(x, edge_index))
+        
+        x = F.dropout(x, p=0.6, training=self.training)
         x = self.conv2(x, edge_index)
-        # x = nn.ReLU()(x)
-        # x = self.conv3(x, edge_index)
-        # x = torch.relu(x)
-        # x = self.linear(x)
+        
         return x
 
 class TimeThenSpace(nn.Module):
@@ -127,8 +125,6 @@ class TimeThenSpace(nn.Module):
         self.time_nn = nn.Sequential(
             nn.Linear(input_dim, time_hidden),
             nn.ReLU(),
-            # nn.Linear(time_hidden * 2, time_hidden),
-            # nn.ReLU(),
             nn.Linear(time_hidden, time_out)
         )
         # self.time_nn = nn.Linear(input_dim, time_out)

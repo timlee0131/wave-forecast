@@ -72,6 +72,56 @@ def create_sequences_mlp(config, X, y, input_steps, target_step):
     y = y[indices[:, input_steps + target_step - 1]]
     return X, y
 
+def create_sequences_geometric(config, X, y, look_back, horizon):
+    """
+    Creates overlapping windows for multivariate time series data.
+
+    Parameters:
+        data (torch.Tensor): Input tensor of shape (a, c, b), where
+                             a = number of time steps,
+                             c = number of observations,
+                             b = feature dimension.
+        look_back (int): Number of past time steps to use as input.
+        horizon (int): Number of future time steps to predict.
+
+    Returns:
+        X (torch.Tensor): Input tensor of shape (n, c, look_back, b), where
+                          n = number of valid windows.
+        y (torch.Tensor): Target tensor of shape (n, c, horizon, b).
+    """
+    # Get dimensions
+    num_samples, num_observations, num_features = X.shape
+    
+    # Determine the number of valid windows
+    n_windows = num_samples - look_back - horizon + 1
+    if n_windows <= 0:
+        raise ValueError("Not enough data to create windows with the given look_back and horizon sizes.")
+    
+    # Create input (X) and target (y) windows
+    X_new = []
+    y_new = []
+    
+    for i in range(n_windows):
+        # Extract look-back window for all observations
+        X_window = X[i:i + look_back]  # Shape: (look_back, c, b)
+        
+        # Extract prediction horizon for all observations
+        # y_window = y[i + look_back:i + look_back + horizon]  # Shape: (horizon, c, b)
+        y_window = y[i+look_back+horizon-1:i + look_back + horizon]  # Shape: (horizon, c, b)
+        
+        X_new.append(X_window)
+        y_new.append(y_window)
+    
+    # Stack into tensors
+    X_new = torch.stack(X_new)  # Shape: (n_windows, look_back, c, b)
+    y_new = torch.stack(y_new)  # Shape: (n_windows, horizon, c, b)
+    
+    # Rearrange dimensions to match desired output shapes
+    X_new = X_new.permute(0, 2, 1, 3)  # Shape: (n_windows, c, look_back, b)
+    y_new = y_new.permute(0, 2, 1, 3)  # Shape: (n_windows, c, horizon, b)
+    
+    return X_new, y_new.squeeze().squeeze()
+
 def RMSE(y_true, y_pred):
     return torch.sqrt(torch.mean((y_true - y_pred) ** 2))
 

@@ -36,7 +36,7 @@ def get_args():
     
     solo_parser = sub_parser.add_parser('solo')    
     # solo_parser.add_argument('-d', '--dataset', choices=['waves', 'waves-2024', 'waves-51002', 'waves-51002-2016', 'waves-51002-2017', 'waves-51002-2018'], type=str, default='waves-51002-2017', help='dataset to use')
-    solo_parser.add_argument('-d', '--dataset', choices=['s46025', 's46069', 's46219', 's46221', 's46251'], type=str, default='s46221', help='dataset to use')
+    solo_parser.add_argument('-d', '--dataset', choices=['s46025', 's46069', 's46219', 's46221', 's46251', 'OneForAll'], type=str, default='s46221', help='dataset to use')
     solo_parser.add_argument('-m', '--mode', choices=['train', 'aux', 'test', 'dat'], type=str, default='train', help='Mode: train, aux, test, dat')
 
     return parser.parse_args()

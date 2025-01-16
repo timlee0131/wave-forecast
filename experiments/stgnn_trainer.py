@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -26,14 +27,20 @@ def train_stgnn(config, model, data, verbose=False):
     epochs = config.epochs
     runs = config.runs
     
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    
     loss_list = []
     results_list = []
+    
+    criterion = nn.MSELoss()
+    eval_criterion = nn.L1Loss(reduction='none')
+    
+    min_y_pred = None   # for plotting purposes
+    min_loss = float('inf')
 
-    model.train()
     for run in range(runs):
+        model.reset_parameters()        
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        
+        model.train()
         for epoch in range(epochs):
             model.train()
 
@@ -53,8 +60,6 @@ def train_stgnn(config, model, data, verbose=False):
                 epoch_c = colored(epoch, 'cyan')
                 loss_c = colored(f'{loss.item():.2f}', 'red')
                 print(f'Epoch: {epoch_c}, Loss: {loss_c}')
-            
-        eval_criterion = nn.L1Loss(reduction='none')
 
         model.eval()
         with torch.no_grad():
@@ -65,19 +70,25 @@ def train_stgnn(config, model, data, verbose=False):
             
             loss = eval_criterion(y_hat, target).mean(dim=0)
             
+            if loss.mean() < min_loss:
+                min_loss = loss.mean()
+                min_y_pred = y_hat
+            
             loss_list.append(loss)
             results_list.append(y_hat)
 
     loss_tensor = torch.stack(loss_list)
     avg_loss = loss_tensor.mean(dim=0)
+    std_loss = loss_tensor.std(dim=0)
             
     if verbose:
         cprint(f'Evaluation Loss: {avg_loss}', 'yellow')
+        cprint(f'standard deviation: {std_loss}', 'yellow')
     
     results_tensor = torch.stack(results_list)
     avg_results = results_tensor.mean(dim=0)
     
-    return avg_results
+    return min_y_pred, test_batch.y.reshape(-1, config.num_nodes)
 
 def driver(config_name, aux=False):
     config_path = f'./experiments/configs/group/{config_name}.py'
@@ -85,6 +96,13 @@ def driver(config_name, aux=False):
     
     train_batch, test_batch = load_dataset_graph(config, device)
     
-    TimeThenSpaceModel = TimeThenSpace(config.num_features * config.look_back, config.time_hidden, config.time_out, config.space_hidden, config.space_out)
+    TimeThenSpaceModel = TimeThenSpace(config.num_features * config.look_back, config.time_hidden, config.time_out, config.space_hidden, config.space_out).to(device)
     
-    pred = train_stgnn(config, TimeThenSpaceModel, [train_batch, test_batch], verbose=config.verbose)
+    pred, target = train_stgnn(config, TimeThenSpaceModel, [train_batch, test_batch], verbose=config.verbose)
+    print(pred)
+    
+    # save the prediction
+    pred_np = pred.cpu().numpy()
+    target_np = target.cpu().numpy()
+    np.save(f'./experiments/data/npy/labn/{config_name}_pred.npy', pred_np)
+    np.save(f'./experiments/data/npy/labn/{config_name}_target.npy', target_np)

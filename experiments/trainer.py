@@ -40,7 +40,7 @@ def train_ndbc_direct(config, model, data, is_cnn=False, verbose=False):
     
     X_test, y_test = create_sequences(config, X_test, y_test, config.seq_len, n)
     
-    print(config.n_step, X_train.shape, y_train.shape)
+    # print(config.n_step, X_train.shape, y_train.shape)
     
     if is_cnn:
         X_train = X_train.transpose(1, 2)
@@ -213,12 +213,22 @@ def train(config, model, data, is_cnn=False, verbose=False):
     return min_y_pred, y_test
 
 def driver(config_name, aux=False):
+    if config_name == 'OneForAll':
+        run_one_for_all()
+        return
     ndbc_whitelist = ['waves-51002', 'waves-51002-2016', 'waves-51002-2017', 'waves-51002-2018']
+    labn_whitelist = ['s46025', 's46069', 's46219', 's46221', 's46251']
     
-    config_path = f'./experiments/configs/ind/{config_name}.py'
+    if config_name in labn_whitelist:
+        config_path = f'./experiments/configs/ind/labn.py'
+    else:
+        config_path = f'./experiments/configs/ind/{config_name}.py'
     
     config = get_config(config_path)
-    if config.dataset in ndbc_whitelist:
+    if config_name in labn_whitelist:
+        config.dataset = config_name
+    
+    if config.dataset in ndbc_whitelist or config.dataset in labn_whitelist:
         data = load_dataset_ndbc(config, device)
     else:
         data = load_dataset(config, device)
@@ -242,17 +252,64 @@ def driver(config_name, aux=False):
     # else:
     #     train(config, lin, data, verbose=config.verbose)
     
-    # print()
-    # print(colored("training MLP...", 'blue'))
-    # if config.dataset in ndbc_whitelist:
-    #     y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
-    # else:
-    #     y_pred_mlp, y_test_mlp = train(config, mlp, data, verbose=config.verbose)
+    print()
+    print(colored("training MLP...", 'blue'))
+    if config.dataset in ndbc_whitelist or config.dataset in labn_whitelist:
+        y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
+    else:
+        y_pred_mlp, y_test_mlp = train(config, mlp, data, verbose=config.verbose)
     
     
     print()
     print(colored("training CNN...", 'blue'))
-    if config.dataset in ndbc_whitelist:
+    if config.dataset in ndbc_whitelist or config.dataset in labn_whitelist:
         y_pred_cnn, y_test_cnn = train_ndbc_direct(config, model, data, config.is_cnn, verbose=config.verbose)
     else:
         y_pred_mlp, y_test_mlp = train(config, model, data, config.is_cnn, verbose=config.verbose)
+
+def run_one_for_all():
+    labn_whitelist = ['s46025', 's46069', 's46219', 's46221', 's46251']
+    
+    config_path = f'./experiments/configs/ind/labn.py'
+    config = get_config(config_path)
+    
+    pred_list = []
+    target_list = []
+    
+    for i, station in enumerate(labn_whitelist):
+        config.dataset = station
+        
+        data = load_dataset_ndbc(config, device)
+        
+        # defining models
+        # lin = SimpleLinear(config.num_features * config.seq_len).to(device)
+        mlp = MLP(config.num_features * config.seq_len, config.mlp_hidden1, config.mlp_hidden2).to(device)
+        model = CNN(config.num_features, config.cnn_hidden1, config.cnn_hidden2, config.fc_hidden, config.output_channels, config.kernel_size, config.stride).to(device)
+        
+        # print()
+        # print(colored("training Linear...", 'blue'))
+        # if config.dataset in ndbc_whitelist:
+        #     y_pred_lin, y_test_lin = train_ndbc_direct(config, lin, data, verbose=config.verbose)
+        # else:
+        #     train(config, lin, data, verbose=config.verbose)
+        
+        print()
+        print(colored("training MLP...", 'blue'))
+        y_pred_mlp, y_test_mlp = train_ndbc_direct(config, mlp, data, verbose=config.verbose)
+        
+        pred_list.append(y_pred_mlp)
+        target_list.append(y_test_mlp)
+        
+        
+        # print()
+        # print(colored("training CNN...", 'blue'))
+        # y_pred_cnn, y_test_cnn = train_ndbc_direct(config, model, data, config.is_cnn, verbose=config.verbose)
+    
+    pred_tensor = torch.cat(pred_list, dim=1)
+    target_tensor = torch.stack(target_list, dim=1)
+    
+    pred_np = pred_tensor.cpu().numpy()
+    target_np = target_tensor.cpu().numpy()
+    
+    np.save(f'./experiments/data/npy/labn/OneForAll_pred.npy', pred_np)
+    np.save(f'./experiments/data/npy/labn/OneForAll_target.npy', target_np)

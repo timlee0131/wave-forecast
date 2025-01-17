@@ -14,6 +14,6 @@ trap 'sig_handler' SIGTERM SIGINT SIGCONT
 cd /users/hunjael/Projects/wave-forecast/
 python -m pip install -r requirements.txt
 
-python main.py solo -d OneForAll
+python main.py gnn -d labn
 srun_pid=$!
 wait $srun_pid

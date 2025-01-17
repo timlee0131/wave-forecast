@@ -9,7 +9,7 @@ from termcolor import colored, cprint
 import time
 
 from models.models import SimpleLinear, MLP, CNN, TimeThenSpace
-from experiments.loader import load_dataset, load_dataset_ndbc, load_dataset_graph
+from experiments.loader import load_dataset, load_dataset_ndbc, load_dataset_graph, load_dataset_graph_cnn
 from experiments.aux import loss_analysis, station_wave_information, station_wave_information_ndbc
 from experiments.utils import RMSE, create_sequences, normalize_data, unnormalize_predictions
 
@@ -94,15 +94,17 @@ def driver(config_name, aux=False):
     config_path = f'./experiments/configs/group/{config_name}.py'
     config = get_config(config_path)
     
-    train_batch, test_batch = load_dataset_graph(config, device)
+    train_batch, test_batch = load_dataset_graph_cnn(config, device)
     
-    TimeThenSpaceModel = TimeThenSpace(config.num_features * config.look_back, config.time_hidden, config.time_out, config.space_hidden, config.space_out).to(device)
+    # TimeThenSpaceModel = TimeThenSpace(config.num_features * config.look_back, config.time_hidden, config.time_out, config.space_hidden, config.space_out).to(device)
+    
+    TimeThenSpaceModel = TimeThenSpace(config.num_features, config.time_hidden, config.time_out, config.space_hidden, config.space_out).to(device)
     
     pred, target = train_stgnn(config, TimeThenSpaceModel, [train_batch, test_batch], verbose=config.verbose)
-    print(pred)
+    # print(pred)
     
-    # save the prediction
+    # # save the prediction
     pred_np = pred.cpu().numpy()
     target_np = target.cpu().numpy()
-    np.save(f'./experiments/data/npy/labn/{config_name}_pred.npy', pred_np)
-    np.save(f'./experiments/data/npy/labn/{config_name}_target.npy', target_np)
+    np.save(f'./experiments/data/npy/labn/{config_name}_pred_cnn_grouped.npy', pred_np)
+    np.save(f'./experiments/data/npy/labn/{config_name}_target_cnn_grouped.npy', target_np)

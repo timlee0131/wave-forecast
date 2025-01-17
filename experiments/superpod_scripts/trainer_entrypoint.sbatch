@@ -2,7 +2,7 @@
 #SBATCH -A coreyc_coreyc_mp_jepa_0001
 #SBATCH -J test
 #SBATCH -p short
-#SBATCH -o output/labn/OneForAll-jobID-%j.out
+#SBATCH -o output/labn/GroupedCNN-jobID-%j.out
 #SBATCH -c 16 --mem=82G
 #SBATCH --nodes=1
 #SBATCH -G 1

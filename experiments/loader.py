@@ -75,4 +75,48 @@ def load_dataset_graph(config, device):
     train_batch = Batch.from_data_list(train_graphs).to(device)
     test_batch = Batch.from_data_list(test_graphs).to(device)
     
+    print(train_batch.x.shape)
+    
+    return train_batch, test_batch
+
+def load_dataset_graph_cnn(config, device):
+    data = torch.load(f'{config.data_dir}/{config.dataset}.pt', weights_only=True)
+    
+    X_train = data['X_train'].to(device)
+    X_test = data['X_test'].to(device)
+    y_train = data['y_train'].to(device)
+    y_test = data['y_test'].to(device)
+    
+    X_train, y_train = create_sequences_geometric(config, X_train, y_train, config.look_back, config.horizon)
+    X_test, y_test = create_sequences_geometric(config, X_test, y_test, config.look_back, config.horizon)
+    
+    X_train_cnn = X_train.permute(0,1,3,2)
+    X_test_cnn = X_test.permute(0,1,3,2)
+    
+    # X_train_cnn_grouped = X_train_cnn.reshape(X_train_cnn.shape[0], X_train_cnn.shape[1] * X_train_cnn.shape[2], X_train_cnn.shape[3])
+    # X_test_cnn_grouped = X_test_cnn.reshape(X_test_cnn.shape[0], X_test_cnn.shape[1] * X_test_cnn.shape[2], X_test_cnn.shape[3])
+    
+    # creating graphs
+    num_graphs = X_train.shape[0]
+    num_nodes = X_train.shape[1]
+    num_features = X_train.shape[3]
+    
+    edge_index = torch.combinations(torch.arange(num_nodes), r=2).t()
+    edge_index = torch.cat([edge_index, edge_index.flip(0)], dim=1)
+
+    train_graphs = []
+    for i in range(num_graphs):
+        node_features = X_train_cnn[i]
+        data = Data(x=node_features, edge_index=edge_index, y=y_train[i])
+        train_graphs.append(data)
+
+    test_graphs = []
+    for i in range(X_test.shape[0]):
+        node_features = X_test_cnn[i]
+        data = Data(x=node_features, edge_index=edge_index, y=y_test[i])
+        test_graphs.append(data)
+    
+    train_batch = Batch.from_data_list(train_graphs).to(device)
+    test_batch = Batch.from_data_list(test_graphs).to(device)
+    
     return train_batch, test_batch
